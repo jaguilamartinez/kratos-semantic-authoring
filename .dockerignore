@@ -1,0 +1,12 @@
+.git
+.DS_Store
+.env
+.venv
+__pycache__
+artifacts
+docs/private
+cases/**/gid_output
+cases/**/vtk_output
+cases/**/*.lck
+cases/**/*.post.bin
+cases/**/*.spd

@@ -1,0 +1,19 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+
+# Documentación local
+/docs/private/
+
+# Resultados
+/artifacts/
+
+# Archivos generados por GiD
+/cases/**/*.lck
+/cases/**/gid_output/
+/cases/**/vtk_output/
+/cases/**/*.post.bin
+/cases/**/*.post.lst
+/cases/**/*.spd

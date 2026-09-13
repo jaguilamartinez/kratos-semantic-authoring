@@ -1,0 +1,20 @@
+services:
+  kratos-worker:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      KSA_CASE_DIR: /case
+      KSA_OUTPUT_DIR: /artifacts
+      OMP_NUM_THREADS: "2"
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - ./cases/test_model_3d.gid:/case:ro
+      - ./artifacts:/artifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 2s
+      retries: 5

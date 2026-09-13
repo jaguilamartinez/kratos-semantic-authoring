@@ -1,0 +1,5 @@
+numpy==2.5.3
+fastapi==0.141.1
+uvicorn==0.52.4
+KratosMultiphysics==10.4.3
+KratosStructuralMechanicsApplication==10.4.3
