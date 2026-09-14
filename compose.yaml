@@ -1,4 +1,20 @@
 services:
+  authoring-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.authoring
+    environment:
+      KSA_BASE_CASE_PATH: /app/authoring/base_case.json
+      KSA_TEMPLATE_DIR: /case
+      KSA_WORKSPACE_DIR: /workspace
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./cases/test_model_3d.gid:/case:ro
+      - ./workspace:/workspace
+
   kratos-worker:
     platform: linux/amd64
     build:
@@ -7,12 +23,14 @@ services:
     environment:
       KSA_CASE_DIR: /case
       KSA_OUTPUT_DIR: /artifacts
+      KSA_REVISION_DIR: /workspace/revisions
       OMP_NUM_THREADS: "2"
     ports:
       - "127.0.0.1:8001:8000"
     volumes:
       - ./cases/test_model_3d.gid:/case:ro
       - ./artifacts:/artifacts
+      - ./workspace:/workspace:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 5s

@@ -9,6 +9,7 @@ __pycache__/
 
 # Resultados
 /artifacts/
+/workspace/
 
 # Archivos generados por GiD
 /cases/**/*.lck

@@ -8,14 +8,20 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel, Field
 
 
 CASE_DIR = Path(os.environ.get("KSA_CASE_DIR", "/case"))
 OUTPUT_DIR = Path(os.environ.get("KSA_OUTPUT_DIR", "/artifacts"))
+REVISION_DIR = Path(os.environ.get("KSA_REVISION_DIR", "/workspace/revisions"))
 RUNNER = Path(__file__).with_name("run_case.py")
 
 app = FastAPI(title="KSA Kratos Worker", version="0.1.0")
 run_lock = asyncio.Lock()
+
+
+class RunRequest(BaseModel):
+    revision: int | None = Field(default=None, ge=0)
 
 
 def load_summary(run_id: UUID) -> dict[str, object]:
@@ -39,23 +45,41 @@ def get_run(run_id: UUID) -> dict[str, object]:
     return {"run_id": str(run_id), **load_summary(run_id)}
 
 
+def case_dir_for(revision: int | None) -> Path:
+    if revision is None:
+        return CASE_DIR
+
+    case_dir = REVISION_DIR / f"revision-{revision:06d}"
+    required = (
+        "ProjectParameters.json",
+        "StructuralMaterials.json",
+        "test_model_3d.mdpa",
+    )
+    if not all((case_dir / name).is_file() for name in required):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Case revision not found")
+    return case_dir
+
+
 @app.post("/runs", status_code=status.HTTP_201_CREATED)
-async def create_run() -> dict[str, object]:
+async def create_run(request: RunRequest | None = None) -> dict[str, object]:
     if run_lock.locked():
         raise HTTPException(status.HTTP_409_CONFLICT, "A run is already in progress")
 
     async with run_lock:
         run_id = uuid4()
+        revision = request.revision if request else None
         command = [
             sys.executable,
             str(RUNNER),
             "--case-dir",
-            str(CASE_DIR),
+            str(case_dir_for(revision)),
             "--output-dir",
             str(OUTPUT_DIR),
             "--run-id",
             str(run_id),
         ]
+        if revision is not None:
+            command.extend(["--case-revision", str(revision)])
         result = await asyncio.to_thread(
             subprocess.run,
             command,

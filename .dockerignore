@@ -4,9 +4,11 @@
 .venv
 __pycache__
 artifacts
+workspace
 docs/private
 cases/**/gid_output
 cases/**/vtk_output
 cases/**/*.lck
 cases/**/*.post.bin
+cases/**/*.post.lst
 cases/**/*.spd

@@ -1,54 +1,104 @@
 # Kratos Semantic Authoring
 
-Primer prototipo para ejecutar un caso de Kratos mediante un worker HTTP. El caso actual es `test_model_3d.gid`, exportado desde GiD.
+Prototipo de edición semántica para un caso de Kratos. La geometría y la malla proceden del proyecto `test_model_3d.gid`; por ahora se pueden cambiar los módulos de Young de sus cinco volúmenes y las magnitudes de sus ocho cargas.
 
-El worker solo acepta este caso y ejecuta un cálculo cada vez. La API principal y la interfaz se añadirán en los siguientes incrementos.
+El repositorio contiene dos servicios:
 
-## Levantar el worker
+- `authoring-api`, que mantiene el modelo canónico, interpreta una petición con un LLM y genera una revisión ejecutable.
+- `kratos-worker`, que ejecuta el caso original o una revisión generada.
 
-Se necesita Docker con Compose:
+Los archivos GiD originales nunca se modifican. Cada cambio crea un bundle nuevo en `workspace/revisions/`, un directorio local que Git ignora.
+
+## Arranque
+
+Se necesita Docker con Compose. Para usar la edición en lenguaje natural, copia el archivo de entorno y añade una clave de OpenAI:
+
+```bash
+cp .env.example .env
+```
+
+Después levanta los servicios:
 
 ```bash
 docker compose up --build
 ```
 
-El servicio queda disponible en `http://localhost:8001`.
+La API de autoría queda en `http://localhost:8000` y el worker en `http://localhost:8001`.
 
 ```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/case
 curl http://localhost:8001/health
+```
+
+## Editar el caso
+
+El campo `expected_revision` evita sobrescribir un cambio más reciente. Se obtiene con `GET /case`.
+
+La ruta directa permite probar la operación determinista sin llamar al LLM:
+
+```bash
+curl -X POST http://localhost:8000/tools/apply-case-changes \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "expected_revision": 0,
+    "material_changes": [
+      {"region": "Volume3", "young_modulus": 3500000000}
+    ],
+    "load_changes": []
+  }'
+```
+
+Para recorrer el mismo camino mediante lenguaje natural:
+
+```bash
+curl -X POST http://localhost:8000/edits \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "expected_revision": 0,
+    "prompt": "Cambia el módulo de Young de Volume3 a 3500000000 en las unidades actuales del modelo"
+  }'
+```
+
+La respuesta incluye el diff semántico, la revisión y las llamadas de tool realizadas. El sistema de unidades del caso aún no está confirmado; por eso el LLM pregunta en vez de convertir valores expresados en Pa, GPa, N u otras unidades.
+
+El prompt y el modelo canónico actual se envían a OpenAI. No se envían la geometría, la malla ni los archivos de Kratos.
+
+## Ejecutar una revisión
+
+El worker sigue aceptando un `POST` vacío para ejecutar el caso original:
+
+```bash
 curl -X POST http://localhost:8001/runs
 ```
 
-`POST /runs` mantiene la conexión abierta hasta que termina Kratos. Cada ejecución crea una carpeta en `artifacts/` con los logs, las salidas GiD y VTK, y un `summary.json`. Esta carpeta no se versiona.
-
-El resultado se puede consultar de nuevo usando el identificador devuelto por el `POST`:
+Para ejecutar un bundle generado, indica su número de revisión:
 
 ```bash
-curl http://localhost:8001/runs/<run_id>
+curl -X POST http://localhost:8001/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"revision": 1}'
 ```
 
-La imagen usa Python 3.12 y Kratos Structural Mechanics 10.4.3 para Linux `amd64`. En un Mac con Apple Silicon, Docker ejecuta la imagen mediante emulación.
-
-Para ejecutar el runner directamente, sin levantar el servidor:
-
-```bash
-docker compose run --rm kratos-worker python /app/run_case.py
-```
+Cada cálculo crea una carpeta en `artifacts/` con logs, resultados GiD y VTK, y un `summary.json`. El resultado se puede consultar de nuevo con `GET /runs/<run_id>`.
 
 ## Pruebas
+
+Con las dependencias de autoría instaladas:
 
 ```bash
 python3 -m unittest discover -s tests
 ```
 
-Estas pruebas comprueban que los archivos del caso siguen presentes y que no han cambiado sus materiales, grupos, cargas o configuración del solver.
+Las pruebas cubren el contrato del caso original, el modelo canónico, las mutaciones, la compilación determinista y el flujo del agente con el modelo de pruebas del SDK. La llamada real al LLM queda fuera de la suite para que las pruebas no dependan de red ni consuman crédito.
 
 ## Estructura
 
-- `cases/test_model_3d.gid/`: proyecto GiD original.
-- `worker/app.py`: endpoints HTTP del worker.
-- `worker/run_case.py`: prepara un directorio temporal, ejecuta Kratos y recoge los resultados.
-- `tests/`: comprobaciones básicas del caso de referencia.
-- `artifacts/`: resultados locales de cada ejecución.
+- `authoring/`: modelo canónico, agente, compilador, persistencia y API de edición.
+- `cases/test_model_3d.gid/`: proyecto GiD original, montado en solo lectura.
+- `worker/`: API y runner de Kratos.
+- `workspace/`: revisiones generadas localmente.
+- `artifacts/`: resultados de las ejecuciones.
+- `tests/`: pruebas del caso y de la autoría.
 
-La especificación de arquitectura está en `docs/private/`. Ese directorio se mantiene fuera de Git.
+La especificación de arquitectura está en `docs/private/`. Ese directorio se mantiene fuera de Git. OpenAI Agents SDK gestiona el ciclo modelo/tool. MCP sigue aplazado y LangGraph se reconsiderará cuando el flujo necesite pausas y reanudación persistente.

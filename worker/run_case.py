@@ -92,7 +92,12 @@ def summarize_vtk(vtk_file: Path) -> dict[str, object]:
     }
 
 
-def run_case(case_dir: Path, output_dir: Path, run_id: str | None = None) -> Path:
+def run_case(
+    case_dir: Path,
+    output_dir: Path,
+    run_id: str | None = None,
+    case_revision: int | None = None,
+) -> Path:
     case_dir = case_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -123,6 +128,7 @@ def run_case(case_dir: Path, output_dir: Path, run_id: str | None = None) -> Pat
         summary = {
             "status": "succeeded",
             "case": problem_name,
+            "case_revision": case_revision,
             "kratos_version": package_version("KratosMultiphysics"),
             "input_sha256": {
                 name: sha256(case_dir / name)
@@ -141,9 +147,15 @@ def main() -> None:
     parser.add_argument("--case-dir", type=Path, default=Path("/case"))
     parser.add_argument("--output-dir", type=Path, default=Path("/artifacts"))
     parser.add_argument("--run-id")
+    parser.add_argument("--case-revision", type=int)
     args = parser.parse_args()
 
-    run_dir = run_case(args.case_dir, args.output_dir, args.run_id)
+    run_dir = run_case(
+        args.case_dir,
+        args.output_dir,
+        args.run_id,
+        args.case_revision,
+    )
     print(f"Artifacts: {run_dir}")
 
 
