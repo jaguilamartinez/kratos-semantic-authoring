@@ -2,8 +2,9 @@
 
 Prototipo de edición semántica para casos de Structural Mechanics en Kratos. La API construye el modelo canónico desde los archivos del caso y permite cambiar variables escalares de materiales y parámetros escalares de procesos. `test_model_3d.gid` es el caso de demostración, no un contrato del código.
 
-El repositorio contiene dos servicios:
+El repositorio contiene tres servicios:
 
+- `frontend`, una interfaz React para enviar prompts y explorar el modelo canónico.
 - `authoring-api`, que mantiene el modelo canónico, interpreta una petición con un LLM y genera una revisión ejecutable.
 - `kratos-worker`, que ejecuta el caso original o una revisión generada.
 
@@ -23,7 +24,7 @@ Después levanta los servicios:
 docker compose up --build
 ```
 
-La API de autoría queda en `http://localhost:8000` y el worker en `http://localhost:8001`.
+La interfaz queda en `http://localhost:3000`, la API de autoría en `http://localhost:8000` y el worker en `http://localhost:8001`.
 
 ```bash
 curl http://localhost:8000/health
@@ -34,6 +35,8 @@ curl http://localhost:8001/health
 ## Editar el caso
 
 El campo `expected_revision` evita sobrescribir un cambio más reciente. Se obtiene con `GET /case`.
+
+La interfaz permite enviar el prompt y representa el modelo actual como un grafo de materiales y procesos. Usa IBM Carbon para los componentes y `@xyflow/react` para el grafo; no contiene nombres ni reglas del caso de demostración.
 
 La ruta directa permite probar la operación determinista sin llamar al LLM:
 
@@ -100,6 +103,7 @@ Las pruebas cubren el contrato del caso original, un segundo caso con nombres ar
 
 - `authoring/`: lector del caso, modelo canónico, agente, compilador, persistencia y API de edición.
 - `cases/test_model_3d.gid/`: proyecto GiD original, montado en solo lectura.
+- `frontend/`: aplicación React, cliente HTTP y grafo del modelo canónico.
 - `worker/`: API y runner de Kratos.
 - `workspace/`: revisiones generadas localmente.
 - `artifacts/`: resultados de las ejecuciones.

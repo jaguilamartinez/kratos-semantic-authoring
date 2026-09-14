@@ -1,0 +1,300 @@
+@use "@carbon/react/scss/config" with (
+  $font-path: "@ibm/plex"
+);
+@use "@carbon/react/scss/theme";
+@use "@carbon/react/scss/type";
+@use "@carbon/react/scss/spacing";
+@use "@carbon/react";
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: theme.$background;
+  color: theme.$text-primary;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  @include type.type-style("heading-03");
+}
+
+h2 {
+  @include type.type-style("heading-04");
+}
+
+.app {
+  min-height: 100vh;
+  background: theme.$background;
+}
+
+.app-header {
+  display: flex;
+  min-height: 5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: spacing.$spacing-05 spacing.$spacing-07;
+  border-bottom: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-01;
+  gap: spacing.$spacing-05;
+}
+
+.app-header__status,
+.model-panel__counts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: spacing.$spacing-03;
+}
+
+.eyebrow,
+.model-card__kind {
+  @include type.type-style("label-01");
+
+  color: theme.$text-secondary;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace {
+  padding-block: spacing.$spacing-07;
+}
+
+.authoring-panel,
+.model-panel {
+  height: 100%;
+  border: 1px solid theme.$border-subtle-01;
+}
+
+.authoring-panel {
+  display: flex;
+  flex-direction: column;
+  gap: spacing.$spacing-07;
+}
+
+.panel-intro {
+  @include type.type-style("body-01");
+
+  max-width: 26rem;
+  margin-top: spacing.$spacing-03;
+  color: theme.$text-secondary;
+}
+
+.authoring-panel form,
+.authoring-panel .cds--inline-notification {
+  width: 100%;
+}
+
+.latest-response {
+  padding-top: spacing.$spacing-05;
+  border-top: 1px solid theme.$border-subtle-01;
+}
+
+.latest-response__heading,
+.model-panel__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: spacing.$spacing-05;
+}
+
+.latest-response h3 {
+  @include type.type-style("heading-compact-02");
+}
+
+.latest-response > p {
+  @include type.type-style("body-01");
+
+  margin-top: spacing.$spacing-04;
+  white-space: pre-wrap;
+}
+
+.change-list {
+  display: grid;
+  padding: 0;
+  margin: spacing.$spacing-05 0 0;
+  gap: spacing.$spacing-04;
+  list-style: none;
+}
+
+.change-list li {
+  display: grid;
+  gap: spacing.$spacing-02;
+}
+
+.change-list code {
+  @include type.type-style("code-01");
+
+  overflow-wrap: anywhere;
+  color: theme.$text-secondary;
+}
+
+.change-list span {
+  @include type.type-style("body-compact-01");
+}
+
+.model-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.model-panel__heading {
+  padding: spacing.$spacing-05 spacing.$spacing-06;
+  border-bottom: 1px solid theme.$border-subtle-01;
+}
+
+.flow-frame {
+  width: 100%;
+  height: calc(100vh - 12rem);
+  min-height: 38rem;
+  background: theme.$background;
+}
+
+.model-loading,
+.model-empty {
+  max-width: 32rem;
+  padding: spacing.$spacing-07;
+}
+
+.model-empty {
+  @include type.type-style("body-01");
+
+  color: theme.$text-secondary;
+}
+
+.react-flow {
+  --xy-background-color-default: #{theme.$background};
+  --xy-node-background-color-default: #{theme.$layer-01};
+  --xy-node-color-default: #{theme.$text-primary};
+  --xy-node-border-default: 1px solid #{theme.$border-subtle-01};
+  --xy-edge-stroke-default: #{theme.$border-strong-01};
+  --xy-edge-stroke-selected-default: #{theme.$border-interactive};
+  --xy-handle-background-color-default: #{theme.$border-interactive};
+  --xy-controls-button-background-color-default: #{theme.$layer-01};
+  --xy-controls-button-border-color-default: #{theme.$border-subtle-01};
+}
+
+.react-flow__node-model {
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.react-flow__node-model:focus-visible .model-card {
+  outline: 2px solid theme.$focus;
+  outline-offset: 2px;
+}
+
+.model-card {
+  width: 100%;
+  padding: spacing.$spacing-05;
+  border: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-01;
+  box-shadow: none;
+}
+
+.model-card--case,
+.model-card--group {
+  border-top: 3px solid theme.$border-interactive;
+}
+
+.model-card h3 {
+  @include type.type-style("heading-compact-02");
+
+  margin-top: spacing.$spacing-02;
+  overflow-wrap: anywhere;
+}
+
+.model-card__caption {
+  @include type.type-style("body-compact-01");
+
+  margin-top: spacing.$spacing-03;
+  color: theme.$text-secondary;
+  overflow-wrap: anywhere;
+}
+
+.model-card__values {
+  margin: spacing.$spacing-04 0 0;
+}
+
+.model-card__values div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: spacing.$spacing-03;
+  border-top: 1px solid theme.$border-subtle-01;
+  gap: spacing.$spacing-04;
+}
+
+.model-card__values dt {
+  @include type.type-style("code-01");
+
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: theme.$text-secondary;
+}
+
+.model-card__values dd {
+  @include type.type-style("body-compact-01");
+
+  margin: 0;
+  white-space: nowrap;
+}
+
+.model-card .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.react-flow__controls {
+  overflow: hidden;
+  border: 1px solid theme.$border-subtle-01;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 1055px) {
+  .model-column {
+    margin-top: spacing.$spacing-05;
+  }
+}
+
+@media (max-width: 671px) {
+  .app-header,
+  .model-panel__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-header {
+    padding-inline: spacing.$spacing-05;
+  }
+
+  .app-header__status,
+  .model-panel__counts {
+    justify-content: flex-start;
+  }
+
+  .workspace {
+    padding-block: spacing.$spacing-05;
+  }
+
+  .flow-frame {
+    height: 34rem;
+    min-height: 34rem;
+  }
+}

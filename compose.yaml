@@ -1,4 +1,13 @@
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    depends_on:
+      - authoring-api
+    ports:
+      - "127.0.0.1:3000:80"
+
   authoring-api:
     build:
       context: .
@@ -18,7 +27,7 @@ services:
     platform: linux/amd64
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.kratos
     environment:
       KSA_CASE_DIR: /case
       KSA_OUTPUT_DIR: /artifacts
