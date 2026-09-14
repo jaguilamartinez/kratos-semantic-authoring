@@ -10,6 +10,8 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
+from run_case import PROJECT_PARAMETERS, input_files
+
 
 CASE_DIR = Path(os.environ.get("KSA_CASE_DIR", "/case"))
 OUTPUT_DIR = Path(os.environ.get("KSA_OUTPUT_DIR", "/artifacts"))
@@ -33,10 +35,12 @@ def load_summary(run_id: UUID) -> dict[str, object]:
 
 @app.get("/health")
 def health() -> dict[str, str]:
+    parameters = json.loads((CASE_DIR / PROJECT_PARAMETERS).read_text())
     return {
         "status": "ok",
         "kratos_version": package_version("KratosMultiphysics"),
-        "case": "test_model_3d",
+        "case": str(parameters["problem_data"]["problem_name"]),
+        "analysis_stage": str(parameters["analysis_stage"]),
     }
 
 
@@ -50,11 +54,12 @@ def case_dir_for(revision: int | None) -> Path:
         return CASE_DIR
 
     case_dir = REVISION_DIR / f"revision-{revision:06d}"
-    required = (
-        "ProjectParameters.json",
-        "StructuralMaterials.json",
-        "test_model_3d.mdpa",
-    )
+    parameters_path = case_dir / PROJECT_PARAMETERS
+    if not parameters_path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Case revision not found")
+
+    parameters = json.loads(parameters_path.read_text())
+    required = input_files(parameters)
     if not all((case_dir / name).is_file() for name in required):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case revision not found")
     return case_dir

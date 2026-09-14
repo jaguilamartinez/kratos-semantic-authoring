@@ -1,6 +1,6 @@
 # Kratos Semantic Authoring
 
-Prototipo de edición semántica para un caso de Kratos. La geometría y la malla proceden del proyecto `test_model_3d.gid`; por ahora se pueden cambiar los módulos de Young de sus cinco volúmenes y las magnitudes de sus ocho cargas.
+Prototipo de edición semántica para casos de Structural Mechanics en Kratos. La API construye el modelo canónico desde los archivos del caso y permite cambiar variables escalares de materiales y parámetros escalares de procesos. `test_model_3d.gid` es el caso de demostración, no un contrato del código.
 
 El repositorio contiene dos servicios:
 
@@ -43,9 +43,13 @@ curl -X POST http://localhost:8000/tools/apply-case-changes \
   -d '{
     "expected_revision": 0,
     "material_changes": [
-      {"region": "Volume3", "young_modulus": 3500000000}
+      {
+        "model_part_name": "Structure.Volume3",
+        "variable_name": "YOUNG_MODULUS",
+        "value": 3500000000
+      }
     ],
-    "load_changes": []
+    "process_changes": []
   }'
 ```
 
@@ -56,7 +60,7 @@ curl -X POST http://localhost:8000/edits \
   -H 'Content-Type: application/json' \
   -d '{
     "expected_revision": 0,
-    "prompt": "Cambia el módulo de Young de Volume3 a 3500000000 en las unidades actuales del modelo"
+    "prompt": "Cambia YOUNG_MODULUS de Volume3 a 3500000000 en las unidades actuales del modelo"
   }'
 ```
 
@@ -80,7 +84,7 @@ curl -X POST http://localhost:8001/runs \
   -d '{"revision": 1}'
 ```
 
-Cada cálculo crea una carpeta en `artifacts/` con logs, resultados GiD y VTK, y un `summary.json`. El resultado se puede consultar de nuevo con `GET /runs/<run_id>`.
+Cada cálculo crea una carpeta en `artifacts/` con los logs, los archivos producidos por los output processes del caso y un `summary.json`. El resultado se puede consultar de nuevo con `GET /runs/<run_id>`.
 
 ## Pruebas
 
@@ -90,11 +94,11 @@ Con las dependencias de autoría instaladas:
 python3 -m unittest discover -s tests
 ```
 
-Las pruebas cubren el contrato del caso original, el modelo canónico, las mutaciones, la compilación determinista y el flujo del agente con el modelo de pruebas del SDK. La llamada real al LLM queda fuera de la suite para que las pruebas no dependan de red ni consuman crédito.
+Las pruebas cubren el contrato del caso original, un segundo caso con nombres arbitrarios, las mutaciones, la compilación determinista y el flujo del agente con el modelo de pruebas del SDK. La llamada real al LLM queda fuera de la suite para que las pruebas no dependan de red ni consuman crédito.
 
 ## Estructura
 
-- `authoring/`: modelo canónico, agente, compilador, persistencia y API de edición.
+- `authoring/`: lector del caso, modelo canónico, agente, compilador, persistencia y API de edición.
 - `cases/test_model_3d.gid/`: proyecto GiD original, montado en solo lectura.
 - `worker/`: API y runner de Kratos.
 - `workspace/`: revisiones generadas localmente.

@@ -4,7 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile.authoring
     environment:
-      KSA_BASE_CASE_PATH: /app/authoring/base_case.json
       KSA_TEMPLATE_DIR: /case
       KSA_WORKSPACE_DIR: /workspace
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

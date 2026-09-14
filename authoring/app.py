@@ -12,16 +12,11 @@ from authoring.store import CaseStore, ChangeResult, RevisionConflict
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE_CASE_PATH = Path(
-    os.environ.get("KSA_BASE_CASE_PATH", Path(__file__).with_name("base_case.json"))
-)
-TEMPLATE_DIR = Path(
-    os.environ.get("KSA_TEMPLATE_DIR", ROOT / "cases" / "test_model_3d.gid")
-)
+TEMPLATE_DIR = Path(os.environ.get("KSA_TEMPLATE_DIR", "/case"))
 WORKSPACE_DIR = Path(os.environ.get("KSA_WORKSPACE_DIR", ROOT / "workspace"))
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-luna")
 
-store = CaseStore(BASE_CASE_PATH, TEMPLATE_DIR, WORKSPACE_DIR)
+store = CaseStore(TEMPLATE_DIR, WORKSPACE_DIR)
 app = FastAPI(title="KSA Authoring API", version="0.2.0")
 
 

@@ -13,7 +13,7 @@ from authoring.case import (
     create_revision,
     update_values,
 )
-from authoring.compiler import compile_case, write_json
+from authoring.compiler import compile_case, load_case, write_json
 
 
 class RevisionConflict(Exception):
@@ -38,11 +38,9 @@ class ChangeResult:
 class CaseStore:
     def __init__(
         self,
-        base_case_path: Path,
         template_dir: Path,
         workspace_dir: Path,
     ) -> None:
-        self.base_case_path = base_case_path
         self.template_dir = template_dir
         self.workspace_dir = workspace_dir
         self.revisions_dir = workspace_dir / "revisions"
@@ -52,8 +50,7 @@ class CaseStore:
         self.revisions_dir.mkdir(parents=True, exist_ok=True)
         with self.lock:
             if not self.current_path.exists():
-                base = Case.model_validate_json(self.base_case_path.read_text())
-                self._publish(base)
+                self._publish(load_case(self.template_dir))
 
     @staticmethod
     def bundle_id(revision: int) -> str:

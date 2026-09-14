@@ -1,7 +1,7 @@
 import argparse
 import hashlib
+import importlib
 import json
-import math
 import shutil
 import tempfile
 from contextlib import chdir
@@ -10,16 +10,9 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 
 import KratosMultiphysics as Kratos
-from KratosMultiphysics.StructuralMechanicsApplication.structural_mechanics_analysis import (
-    StructuralMechanicsAnalysis,
-)
 
 
-INPUT_FILES = (
-    "ProjectParameters.json",
-    "StructuralMaterials.json",
-    "test_model_3d.mdpa",
-)
+PROJECT_PARAMETERS = "ProjectParameters.json"
 
 
 def sha256(path: Path) -> str:
@@ -30,66 +23,49 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def copy_inputs(case_dir: Path, workspace: Path) -> None:
-    for name in INPUT_FILES:
+def input_files(parameters: dict[str, object]) -> tuple[str, ...]:
+    material_file = str(
+        parameters["solver_settings"]["material_import_settings"][
+            "materials_filename"
+        ]
+    )
+    meshes: list[str] = []
+    for modeler in parameters["modelers"]:
+        if not str(modeler["name"]).endswith("ImportMDPAModeler"):
+            continue
+        name = str(modeler["parameters"]["input_filename"])
+        meshes.append(name if name.endswith(".mdpa") else f"{name}.mdpa")
+    return (PROJECT_PARAMETERS, material_file, *meshes)
+
+
+def copy_inputs(case_dir: Path, workspace: Path, names: tuple[str, ...]) -> None:
+    for name in names:
         source = case_dir / name
         if not source.is_file():
             raise FileNotFoundError(f"Missing case input: {source}")
         shutil.copy2(source, workspace / name)
 
 
-def read_vtk_field(lines: list[str], field_name: str) -> list[list[float]]:
-    for index, line in enumerate(lines):
-        header = line.split()
-        if not header or header[0] != field_name:
-            continue
-
-        components = int(header[1])
-        item_count = int(header[2])
-        values: list[float] = []
-
-        for row in lines[index + 1 :]:
-            values.extend(float(value) for value in row.split())
-            if len(values) >= components * item_count:
-                break
-
-        expected = components * item_count
-        if len(values) != expected:
-            raise ValueError(f"Incomplete VTK field {field_name}: {len(values)}/{expected}")
-
-        return [
-            values[offset : offset + components]
-            for offset in range(0, expected, components)
-        ]
-
-    raise ValueError(f"VTK field not found: {field_name}")
-
-
-def summarize_vtk(vtk_file: Path) -> dict[str, object]:
-    lines = vtk_file.read_text().splitlines()
-    displacements = read_vtk_field(lines, "DISPLACEMENT")
-    reactions = read_vtk_field(lines, "REACTION")
-    stresses = read_vtk_field(lines, "VON_MISES_STRESS")
-
-    displacement_norms = [
-        math.sqrt(sum(value * value for value in row))
-        for row in displacements
-    ]
-    max_index, max_norm = max(
-        enumerate(displacement_norms),
-        key=lambda item: item[1],
+def load_analysis_stage(module_name: str) -> type:
+    class_name = "".join(
+        part.title() for part in module_name.rsplit(".", 1)[-1].split("_")
     )
+    return getattr(importlib.import_module(module_name), class_name)
 
-    return {
-        "node_count": len(displacements),
-        "max_displacement": {
-            "node_id": max_index + 1,
-            "norm": max_norm,
-            "vector": displacements[max_index],
-        },
-        "reaction_sum": [sum(row[axis] for row in reactions) for axis in range(3)],
-        "max_von_mises_stress": max(row[0] for row in stresses),
-    }
+
+def copy_outputs(
+    workspace: Path,
+    run_dir: Path,
+    input_names: tuple[str, ...],
+) -> list[str]:
+    outputs = [path for path in workspace.iterdir() if path.name not in input_names]
+    for source in outputs:
+        destination = run_dir / source.name
+        if source.is_dir():
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
+    return sorted(path.name for path in outputs)
 
 
 def run_case(
@@ -101,40 +77,37 @@ def run_case(
     case_dir = case_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    raw_parameters = (case_dir / PROJECT_PARAMETERS).read_text()
+    configuration = json.loads(raw_parameters)
+    names = input_files(configuration)
+
     with tempfile.TemporaryDirectory(prefix="ksa-") as tmp:
         workspace = Path(tmp)
-        copy_inputs(case_dir, workspace)
+        copy_inputs(case_dir, workspace, names)
 
-        raw_parameters = (workspace / "ProjectParameters.json").read_text()
-        problem_name = json.loads(raw_parameters)["problem_data"]["problem_name"]
         parameters = Kratos.Parameters(raw_parameters)
+        analysis_stage_name = str(configuration["analysis_stage"])
+        analysis_stage = load_analysis_stage(analysis_stage_name)
 
         with chdir(workspace):
-            StructuralMechanicsAnalysis(Kratos.Model(), parameters).Run()
-
-        vtk_files = sorted((workspace / "vtk_output").glob("*.vtk"))
-        if not vtk_files:
-            raise RuntimeError("Kratos completed without producing a VTK file")
+            analysis_stage(Kratos.Model(), parameters).Run()
 
         run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
         run_dir = output_dir / run_id
         run_dir.mkdir()
-
-        for output_name in ("gid_output", "vtk_output"):
-            source = workspace / output_name
-            if source.exists():
-                shutil.copytree(source, run_dir / output_name)
+        outputs = copy_outputs(workspace, run_dir, names)
 
         summary = {
             "status": "succeeded",
-            "case": problem_name,
+            "case": configuration["problem_data"]["problem_name"],
+            "analysis_stage": analysis_stage_name,
             "case_revision": case_revision,
             "kratos_version": package_version("KratosMultiphysics"),
             "input_sha256": {
                 name: sha256(case_dir / name)
-                for name in INPUT_FILES
+                for name in names
             },
-            "results": summarize_vtk(vtk_files[-1]),
+            "outputs": outputs,
         }
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
 
@@ -143,7 +116,7 @@ def run_case(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the reference Kratos case")
+    parser = argparse.ArgumentParser(description="Run a Kratos structural case")
     parser.add_argument("--case-dir", type=Path, default=Path("/case"))
     parser.add_argument("--output-dir", type=Path, default=Path("/artifacts"))
     parser.add_argument("--run-id")

@@ -12,20 +12,21 @@ from agents import (
 from authoring.case import (
     Case,
     CaseChanges,
-    LoadChange,
     MaterialChange,
+    ProcessChange,
     update_values,
 )
 
 
-INSTRUCTIONS = """You edit one fixed Kratos structural mechanics case.
-Only change values explicitly requested by the user. The unit system has not been
-confirmed, so never infer or convert units. If a request is ambiguous, contains
-units, or asks for an unsupported change, ask a concise question and do not call
-the tool. Do not include unchanged or unrequested fields. Call apply_case_changes
-once with every requested change. Use an empty array for a category that does not
-change. After a successful tool call, briefly state what changed. Never claim that
-the case was run or physically validated.
+INSTRUCTIONS = """You edit scalar values in a Kratos Structural Mechanics case.
+Use the exact material model-part, variable, process ID, and parameter names shown
+in the canonical case. Only change values explicitly requested by the user. The
+unit system has not been confirmed, so treat bare numbers as values in the case's
+current units and never infer or convert named units. If a request is ambiguous,
+asks for a conversion, or asks for a value not exposed in the canonical case, ask
+a concise question and do not call the tool. Call apply_case_changes once with
+every requested change. After a successful tool call, briefly state what changed.
+Never claim that the case was run or physically validated.
 """
 
 
@@ -39,17 +40,17 @@ class EditContext:
 def apply_case_changes(
     context: RunContextWrapper[EditContext],
     material_changes: list[MaterialChange],
-    load_changes: list[LoadChange],
+    process_changes: list[ProcessChange],
 ) -> dict[str, object]:
     """Stage one atomic edit of the current structural case.
 
     Args:
-        material_changes: Young's modulus changes in the model's current units.
-        load_changes: Load magnitude changes in the model's current units.
+        material_changes: Changes to scalar material variables.
+        process_changes: Changes to scalar process parameters.
     """
     changes = CaseChanges(
         material_changes=material_changes,
-        load_changes=load_changes,
+        process_changes=process_changes,
     )
     context.context.draft = update_values(context.context.draft, changes)
     context.context.tool_calls.append(
