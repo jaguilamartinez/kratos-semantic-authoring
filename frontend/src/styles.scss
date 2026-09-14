@@ -42,6 +42,10 @@ h2 {
   background: theme.$background;
 }
 
+.app-main {
+  min-width: 0;
+}
+
 .app-header {
   display: flex;
   min-height: 5rem;
@@ -70,7 +74,12 @@ h2 {
   text-transform: uppercase;
 }
 
-.workspace {
+.workspace-tab {
+  padding: 0;
+}
+
+.workspace,
+.revisions-workspace {
   padding-block: spacing.$spacing-07;
 }
 
@@ -159,9 +168,38 @@ h2 {
 
 .flow-frame {
   width: 100%;
-  height: calc(100vh - 12rem);
+  height: calc(100vh - 15rem);
   min-height: 38rem;
   background: theme.$background;
+}
+
+.flow-view {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+.flow-toolbar {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: spacing.$spacing-06;
+  border-bottom: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-01;
+  gap: spacing.$spacing-05;
+}
+
+.flow-toolbar p {
+  @include type.type-style("body-compact-01");
+
+  color: theme.$text-secondary;
+}
+
+.flow-canvas {
+  position: relative;
+  min-height: 0;
+  flex: 1;
 }
 
 .model-loading,
@@ -191,12 +229,22 @@ h2 {
 .react-flow__node-model {
   background: transparent;
   border: 0;
+  cursor: grab;
   text-align: left;
+}
+
+.react-flow__node-model.dragging {
+  cursor: grabbing;
 }
 
 .react-flow__node-model:focus-visible .model-card {
   outline: 2px solid theme.$focus;
   outline-offset: 2px;
+}
+
+.react-flow__node-model.selected .model-card {
+  border-color: theme.$border-interactive;
+  box-shadow: 0 0 0 1px theme.$border-interactive;
 }
 
 .model-card {
@@ -267,6 +315,122 @@ h2 {
   box-shadow: none;
 }
 
+.react-flow__minimap {
+  border: 1px solid theme.$border-subtle-01;
+  border-radius: 0;
+  background: theme.$layer-01;
+}
+
+.revision-control,
+.run-panel {
+  height: 100%;
+  border: 1px solid theme.$border-subtle-01;
+}
+
+.revision-control {
+  display: flex;
+  flex-direction: column;
+  gap: spacing.$spacing-07;
+}
+
+.revision-facts,
+.run-facts {
+  margin: 0;
+}
+
+.revision-facts {
+  display: grid;
+  gap: spacing.$spacing-04;
+}
+
+.revision-facts div,
+.run-facts div {
+  min-width: 0;
+  padding-top: spacing.$spacing-03;
+  border-top: 1px solid theme.$border-subtle-01;
+}
+
+.revision-facts dt,
+.run-facts dt {
+  @include type.type-style("label-01");
+
+  color: theme.$text-secondary;
+}
+
+.revision-facts dd,
+.run-facts dd {
+  @include type.type-style("body-01");
+
+  margin: spacing.$spacing-02 0 0;
+  overflow-wrap: anywhere;
+}
+
+.revision-facts code,
+.run-facts code {
+  @include type.type-style("code-01");
+}
+
+.revision-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: spacing.$spacing-03;
+}
+
+.revision-control .cds--inline-notification {
+  width: 100%;
+}
+
+.run-panel {
+  min-height: 36rem;
+}
+
+.run-panel__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: spacing.$spacing-05;
+}
+
+.run-result {
+  display: grid;
+  margin-top: spacing.$spacing-07;
+  gap: spacing.$spacing-07;
+}
+
+.run-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: spacing.$spacing-05 spacing.$spacing-07;
+}
+
+.run-facts__wide {
+  grid-column: 1 / -1;
+}
+
+.run-outputs h3 {
+  @include type.type-style("heading-compact-02");
+}
+
+.run-outputs p,
+.run-outputs ul {
+  @include type.type-style("body-01");
+
+  margin: spacing.$spacing-04 0 0;
+}
+
+.run-outputs ul {
+  padding-left: spacing.$spacing-05;
+}
+
+.run-empty {
+  @include type.type-style("body-01");
+
+  max-width: 32rem;
+  margin-top: spacing.$spacing-07;
+  color: theme.$text-secondary;
+}
+
 @media (max-width: 1055px) {
   .model-column {
     margin-top: spacing.$spacing-05;
@@ -289,12 +453,35 @@ h2 {
     justify-content: flex-start;
   }
 
-  .workspace {
+  .workspace,
+  .revisions-workspace {
     padding-block: spacing.$spacing-05;
+  }
+
+  .run-column {
+    margin-top: spacing.$spacing-05;
+  }
+
+  .flow-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: spacing.$spacing-04 0 0 spacing.$spacing-05;
   }
 
   .flow-frame {
     height: 34rem;
     min-height: 34rem;
+  }
+
+  .react-flow__minimap {
+    display: none;
+  }
+
+  .run-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .run-facts__wide {
+    grid-column: auto;
   }
 }

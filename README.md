@@ -36,7 +36,9 @@ curl http://localhost:8001/health
 
 El campo `expected_revision` evita sobrescribir un cambio más reciente. Se obtiene con `GET /case`.
 
-La interfaz permite enviar el prompt y representa el modelo actual como un grafo de materiales y procesos. Usa IBM Carbon para los componentes y `@xyflow/react` para el grafo; no contiene nombres ni reglas del caso de demostración.
+La interfaz permite enviar el prompt y representa el modelo actual como un grafo de materiales y procesos. Los nodos se pueden seleccionar y mover para ordenar la vista sin modificar el caso. Usa IBM Carbon para los componentes y `@xyflow/react` para el grafo; no contiene nombres ni reglas del caso de demostración.
+
+La pestaña `Revisions` permite ejecutar en Kratos cualquiera de las revisiones creadas en el workspace y muestra el resumen de la última ejecución. Las revisiones son inmutables: ejecutarlas no cambia cuál es la revisión actual.
 
 La ruta directa permite probar la operación determinista sin llamar al LLM:
 

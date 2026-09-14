@@ -37,6 +37,17 @@ export interface EditResponse extends CaseSnapshot {
   message: string;
 }
 
+export interface RunSummary {
+  run_id: string;
+  status: string;
+  case: string;
+  analysis_stage: string;
+  case_revision: number | null;
+  kratos_version: string;
+  input_sha256: Record<string, string>;
+  outputs: string[];
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -46,33 +57,64 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, options);
-  const body = (await response.json()) as {
-    detail?: string | { message?: string };
-  };
+function responseMessage(body: unknown, status: number): string {
+  if (typeof body === "string" && body.trim() && !body.trim().startsWith("<")) {
+    return body;
+  }
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = body.detail;
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object" && "message" in detail) {
+      const message = detail.message;
+      if (typeof message === "string") return message;
+    }
+  }
+  return `Request failed (${status})`;
+}
+
+async function request<T>(
+  basePath: string,
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  const response = await fetch(`${basePath}${path}`, options);
+  const text = await response.text();
+  let body: unknown = text;
+
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // Proxy errors may be plain text or HTML.
+    }
+  }
 
   if (!response.ok) {
-    const detail = body.detail;
-    const message =
-      typeof detail === "string" ? detail : detail?.message || "Request failed";
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, responseMessage(body, response.status));
   }
 
   return body as T;
 }
 
 export function getCase(): Promise<CaseSnapshot> {
-  return request<CaseSnapshot>("/case");
+  return request<CaseSnapshot>("/api", "/case");
 }
 
 export function editCase(
   prompt: string,
   expectedRevision: number,
 ): Promise<EditResponse> {
-  return request<EditResponse>("/edits", {
+  return request<EditResponse>("/api", "/edits", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt, expected_revision: expectedRevision }),
+  });
+}
+
+export function runRevision(revision: number): Promise<RunSummary> {
+  return request<RunSummary>("/worker-api", "/runs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ revision }),
   });
 }

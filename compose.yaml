@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile.frontend
     depends_on:
       - authoring-api
+      - kratos-worker
     ports:
       - "127.0.0.1:3000:80"
 

@@ -7,6 +7,11 @@ import {
   InlineNotification,
   SkeletonText,
   Stack,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
   Tag,
   TextArea,
   Tile,
@@ -15,6 +20,7 @@ import {
 import { ApiError, editCase, getCase } from "./api";
 import type { CaseSnapshot, EditResponse } from "./api";
 import { CanonicalFlow } from "./CanonicalFlow";
+import { RevisionPanel } from "./RevisionPanel";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error";
@@ -46,6 +52,7 @@ export default function App() {
 
     setSubmitting(true);
     setError(null);
+    setResult(null);
 
     try {
       const response = await editCase(prompt.trim(), snapshot.case.revision);
@@ -79,111 +86,135 @@ export default function App() {
         </div>
       </header>
 
-      <Grid fullWidth className="workspace">
-        <Column sm={4} md={3} lg={4}>
-          <Tile className="authoring-panel">
-            <div>
-              <p className="eyebrow">Authoring</p>
-              <h2>Edit the case</h2>
-              <p className="panel-intro">
-                Describe one change using the names shown in the canonical model.
-              </p>
-            </div>
+      <main className="app-main">
+        <Tabs>
+          <TabList aria-label="Workspace sections" contained fullWidth>
+            <Tab>Authoring</Tab>
+            <Tab>Revisions</Tab>
+          </TabList>
+          <TabPanels>
+            <TabPanel className="workspace-tab">
+              <Grid fullWidth className="workspace">
+                <Column sm={4} md={3} lg={4}>
+                  <Tile className="authoring-panel">
+                    <div>
+                      <p className="eyebrow">Authoring</p>
+                      <h2>Edit the case</h2>
+                      <p className="panel-intro">
+                        Describe one change using the names shown in the canonical
+                        model.
+                      </p>
+                    </div>
 
-            <form onSubmit={handleSubmit}>
-              <Stack gap={5}>
-                <TextArea
-                  id="prompt"
-                  labelText="Prompt"
-                  helperText="Bare numbers use the case's current units."
-                  placeholder="Set DENSITY for Frame.Core to 7850"
-                  value={prompt}
-                  maxLength={4000}
-                  rows={5}
-                  disabled={!model || submitting}
-                  onChange={(event) => setPrompt(event.target.value)}
-                />
-                {submitting ? (
-                  <InlineLoading description="Applying change" />
-                ) : (
-                  <Button type="submit" disabled={!model || !prompt.trim()}>
-                    Apply change
-                  </Button>
-                )}
-              </Stack>
-            </form>
+                    <form onSubmit={handleSubmit}>
+                      <Stack gap={5}>
+                        <TextArea
+                          id="prompt"
+                          labelText="Prompt"
+                          helperText="Bare numbers use the case's current units."
+                          placeholder="Set DENSITY for Frame.Core to 7850"
+                          value={prompt}
+                          maxLength={4000}
+                          rows={5}
+                          disabled={!model || submitting}
+                          onChange={(event) => setPrompt(event.target.value)}
+                        />
+                        {submitting ? (
+                          <InlineLoading description="Applying change" />
+                        ) : (
+                          <Button
+                            type="submit"
+                            disabled={!model || !prompt.trim()}
+                          >
+                            Apply change
+                          </Button>
+                        )}
+                      </Stack>
+                    </form>
 
-            {error && (
-              <InlineNotification
-                kind="error"
-                lowContrast
-                hideCloseButton
-                title="Request failed"
-                subtitle={error}
-              />
-            )}
+                    {error && (
+                      <InlineNotification
+                        kind="error"
+                        lowContrast
+                        hideCloseButton
+                        title="Request failed"
+                        subtitle={error}
+                      />
+                    )}
 
-            {result && (
-              <section className="latest-response" aria-labelledby="response-title">
-                <div className="latest-response__heading">
-                  <h3 id="response-title">Latest response</h3>
-                  <Tag type={result.applied ? "green" : "gray"}>
-                    {result.applied ? "Applied" : "No change"}
-                  </Tag>
-                </div>
-                <p>{result.message}</p>
-                {result.changes.length > 0 && (
-                  <ul className="change-list">
-                    {result.changes.map((change) => (
-                      <li key={change.field}>
-                        <code>{change.field}</code>
-                        <span>
-                          {change.before.toLocaleString()} →{" "}
-                          {change.after.toLocaleString()}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
-          </Tile>
-        </Column>
+                    {result && (
+                      <section
+                        className="latest-response"
+                        aria-labelledby="response-title"
+                      >
+                        <div className="latest-response__heading">
+                          <h3 id="response-title">Latest response</h3>
+                          <Tag type={result.applied ? "green" : "gray"}>
+                            {result.applied ? "Applied" : "No change"}
+                          </Tag>
+                        </div>
+                        <p>{result.message}</p>
+                        {result.changes.length > 0 && (
+                          <ul className="change-list">
+                            {result.changes.map((change) => (
+                              <li key={change.field}>
+                                <code>{change.field}</code>
+                                <span>
+                                  {change.before.toLocaleString()} →{" "}
+                                  {change.after.toLocaleString()}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    )}
+                  </Tile>
+                </Column>
 
-        <Column sm={4} md={5} lg={12} className="model-column">
-          <Tile className="model-panel">
-            <div className="model-panel__heading">
-              <div>
-                <p className="eyebrow">Current revision</p>
-                <h2>Canonical model</h2>
-              </div>
-              {model && (
-                <div className="model-panel__counts">
-                  <Tag type="blue">
-                    {Object.keys(model.materials).length} materials
-                  </Tag>
-                  <Tag type="purple">
-                    {Object.keys(model.processes).length} processes
-                  </Tag>
-                </div>
-              )}
-            </div>
+                <Column sm={4} md={5} lg={12} className="model-column">
+                  <Tile className="model-panel">
+                    <div className="model-panel__heading">
+                      <div>
+                        <p className="eyebrow">Current revision</p>
+                        <h2>Canonical model</h2>
+                      </div>
+                      {model && (
+                        <div className="model-panel__counts">
+                          <Tag type="blue">
+                            {Object.keys(model.materials).length} materials
+                          </Tag>
+                          <Tag type="purple">
+                            {Object.keys(model.processes).length} processes
+                          </Tag>
+                        </div>
+                      )}
+                    </div>
 
-            <div className="flow-frame">
-              {loading ? (
-                <div className="model-loading">
-                  <SkeletonText heading width="45%" />
-                  <SkeletonText paragraph lineCount={6} />
-                </div>
-              ) : model ? (
-                <CanonicalFlow model={model} />
-              ) : (
-                <p className="model-empty">The canonical model is unavailable.</p>
-              )}
-            </div>
-          </Tile>
-        </Column>
-      </Grid>
+                    <div className="flow-frame">
+                      {loading ? (
+                        <div className="model-loading">
+                          <SkeletonText heading width="45%" />
+                          <SkeletonText paragraph lineCount={6} />
+                        </div>
+                      ) : model ? (
+                        <CanonicalFlow model={model} />
+                      ) : (
+                        <p className="model-empty">
+                          The canonical model is unavailable.
+                        </p>
+                      )}
+                    </div>
+                  </Tile>
+                </Column>
+              </Grid>
+            </TabPanel>
+            <TabPanel className="workspace-tab">
+              <RevisionPanel snapshot={snapshot} onRefresh={loadCurrentCase} />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      </main>
     </div>
   );
 }

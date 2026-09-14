@@ -1,16 +1,20 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Button } from "@carbon/react";
 import {
   Background,
   BackgroundVariant,
   Controls,
   Handle,
   MarkerType,
+  MiniMap,
   Position,
   ReactFlow,
   type Edge,
   type Node,
   type NodeProps,
   type NodeTypes,
+  type ReactFlowInstance,
+  useNodesState,
 } from "@xyflow/react";
 
 import type { CanonicalCase, ScalarValues } from "./api";
@@ -33,6 +37,11 @@ type ModelNodeData = Record<string, unknown> & {
 };
 
 type ModelNode = Node<ModelNodeData, "model">;
+
+interface ModelGraph {
+  nodes: ModelNode[];
+  edges: Edge[];
+}
 
 function formatValue(value: number): string {
   return new Intl.NumberFormat("en", {
@@ -97,10 +106,7 @@ function layoutBranch(nodes: ModelNode[], startX: number): ModelNode[] {
   return nodes;
 }
 
-function graphFromCase(model: CanonicalCase): {
-  nodes: ModelNode[];
-  edges: Edge[];
-} {
+function graphFromCase(model: CanonicalCase): ModelGraph {
   const branchWidth = CARD_WIDTH * 2 + COLUMN_GAP;
   const processStartX = branchWidth + BRANCH_GAP;
   const rootX = (branchWidth * 2 + BRANCH_GAP - CARD_WIDTH) / 2;
@@ -232,31 +238,77 @@ function graphFromCase(model: CanonicalCase): {
   return { nodes, edges };
 }
 
+function copyNodes(nodes: ModelNode[]): ModelNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    position: { ...node.position },
+  }));
+}
+
+function FlowCanvas({ graph }: { graph: ModelGraph }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState<ModelNode>(
+    copyNodes(graph.nodes),
+  );
+  const [flow, setFlow] = useState<ReactFlowInstance<ModelNode, Edge> | null>(
+    null,
+  );
+
+  function resetLayout() {
+    setNodes(copyNodes(graph.nodes));
+    requestAnimationFrame(() => {
+      void flow?.fitView({ padding: 0.12, duration: 250 });
+    });
+  }
+
+  return (
+    <div className="flow-view">
+      <div className="flow-toolbar">
+        <p>Drag cards to rearrange this view. Model data is unchanged.</p>
+        <Button type="button" kind="ghost" size="sm" onClick={resetLayout}>
+          Reset layout
+        </Button>
+      </div>
+      <div className="flow-canvas">
+        <ReactFlow<ModelNode, Edge>
+          nodes={nodes}
+          edges={graph.edges}
+          nodeTypes={nodeTypes}
+          colorMode="light"
+          fitView
+          fitViewOptions={{ padding: 0.12 }}
+          minZoom={0.25}
+          maxZoom={1.5}
+          onInit={setFlow}
+          onNodesChange={onNodesChange}
+          nodesDraggable
+          nodesConnectable={false}
+          edgesFocusable={false}
+          edgesReconnectable={false}
+          elementsSelectable
+          deleteKeyCode={null}
+          defaultEdgeOptions={{
+            type: "smoothstep",
+            markerEnd: { type: MarkerType.ArrowClosed },
+            focusable: false,
+            selectable: false,
+          }}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+          <MiniMap
+            ariaLabel="Canonical model overview"
+            pannable
+            zoomable
+            nodeStrokeWidth={3}
+          />
+          <Controls />
+        </ReactFlow>
+      </div>
+    </div>
+  );
+}
+
 export function CanonicalFlow({ model }: { model: CanonicalCase }) {
   const graph = useMemo(() => graphFromCase(model), [model]);
 
-  return (
-    <ReactFlow
-      key={model.revision}
-      nodes={graph.nodes}
-      edges={graph.edges}
-      nodeTypes={nodeTypes}
-      colorMode="light"
-      fitView
-      fitViewOptions={{ padding: 0.12 }}
-      minZoom={0.25}
-      maxZoom={1.5}
-      nodesDraggable={false}
-      nodesConnectable={false}
-      elementsSelectable={false}
-      deleteKeyCode={null}
-      defaultEdgeOptions={{
-        type: "smoothstep",
-        markerEnd: { type: MarkerType.ArrowClosed },
-      }}
-    >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-      <Controls showInteractive={false} />
-    </ReactFlow>
-  );
+  return <FlowCanvas key={model.revision} graph={graph} />;
 }
