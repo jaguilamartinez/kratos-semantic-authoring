@@ -154,6 +154,98 @@ h2 {
 
 .change-list span {
   @include type.type-style("body-compact-01");
+
+  overflow-wrap: anywhere;
+}
+
+.draft-review {
+  display: grid;
+  padding-top: spacing.$spacing-05;
+  border-top: 1px solid theme.$border-subtle-01;
+  gap: spacing.$spacing-04;
+}
+
+.draft-review h3,
+.model-detail h3 {
+  @include type.type-style("heading-compact-02");
+}
+
+.validation-result {
+  margin-top: spacing.$spacing-04;
+}
+
+.validation-issues {
+  @include type.type-style("body-compact-01");
+
+  display: grid;
+  padding-left: spacing.$spacing-05;
+  gap: spacing.$spacing-03;
+}
+
+.validation-issues code {
+  @include type.type-style("code-01");
+
+  display: block;
+  color: theme.$text-secondary;
+  overflow-wrap: anywhere;
+}
+
+.model-view-tab {
+  padding: 0;
+}
+
+.model-detail {
+  min-height: 38rem;
+  max-height: calc(100vh - 17rem);
+  padding: spacing.$spacing-06;
+  overflow: auto;
+}
+
+.native-details {
+  min-width: 0;
+  margin-top: spacing.$spacing-06;
+}
+
+.native-details summary {
+  @include type.type-style("body-compact-01");
+
+  cursor: pointer;
+}
+
+.native-details summary:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: 2px;
+}
+
+.json-view {
+  @include type.type-style("code-01");
+
+  max-height: 36rem;
+  padding: spacing.$spacing-05;
+  margin: spacing.$spacing-04 0 0;
+  overflow: auto;
+  background: theme.$layer-02;
+}
+
+.coverage-list {
+  padding: 0;
+  margin-top: spacing.$spacing-05;
+  list-style: none;
+}
+
+.coverage-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: spacing.$spacing-03;
+  border-top: 1px solid theme.$border-subtle-01;
+  gap: spacing.$spacing-04;
+}
+
+.coverage-list code {
+  @include type.type-style("code-01");
+
+  overflow-wrap: anywhere;
 }
 
 .model-panel {
@@ -256,7 +348,7 @@ h2 {
 }
 
 .model-card--case,
-.model-card--group {
+.model-card--region {
   border-top: 3px solid theme.$border-interactive;
 }
 
@@ -300,7 +392,8 @@ h2 {
   @include type.type-style("body-compact-01");
 
   margin: 0;
-  white-space: nowrap;
+  max-width: 65%;
+  overflow-wrap: anywhere;
 }
 
 .model-card .react-flow__handle {

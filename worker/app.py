@@ -16,6 +16,7 @@ from run_case import PROJECT_PARAMETERS, input_files
 CASE_DIR = Path(os.environ.get("KSA_CASE_DIR", "/case"))
 OUTPUT_DIR = Path(os.environ.get("KSA_OUTPUT_DIR", "/artifacts"))
 REVISION_DIR = Path(os.environ.get("KSA_REVISION_DIR", "/workspace/revisions"))
+VALIDATION_DIR = Path(os.environ.get("KSA_VALIDATION_DIR", "/workspace/validation"))
 RUNNER = Path(__file__).with_name("run_case.py")
 
 app = FastAPI(title="KSA Kratos Worker", version="0.1.0")
@@ -24,6 +25,10 @@ run_lock = asyncio.Lock()
 
 class RunRequest(BaseModel):
     revision: int | None = Field(default=None, ge=0)
+
+
+class CheckRequest(BaseModel):
+    bundle_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 def load_summary(run_id: UUID) -> dict[str, object]:
@@ -62,7 +67,30 @@ def case_dir_for(revision: int | None) -> Path:
     required = input_files(parameters)
     if not all((case_dir / name).is_file() for name in required):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case revision not found")
+    validation_path = case_dir / "validation.json"
+    if validation_path.exists():
+        validation = json.loads(validation_path.read_text())
+        if not validation["valid"] or not validation["execution_supported"]:
+            raise HTTPException(422, "This revision is preserved but has no supported execution profile")
     return case_dir
+
+
+@app.post("/checks")
+async def check_draft(request: CheckRequest) -> dict[str, object]:
+    directory = VALIDATION_DIR / request.bundle_hash
+    if not (directory / "manifest.json").is_file():
+        raise HTTPException(404, "Compiled draft not found")
+    if run_lock.locked():
+        raise HTTPException(409, "Kratos is busy; retry validation when the run finishes")
+    async with run_lock:
+        result = await asyncio.to_thread(
+            subprocess.run,
+            [sys.executable, str(RUNNER), "--case-dir", str(directory), "--check-only"],
+            capture_output=True, text=True, check=False,
+        )
+    return {"valid": result.returncode == 0, "kratos_version": package_version("KratosMultiphysics"),
+            "message": "Kratos Initialize/Check passed; no solution was computed" if not result.returncode
+            else result.stderr[-4000:] or "Kratos initialization failed"}
 
 
 @app.post("/runs", status_code=status.HTTP_201_CREATED)

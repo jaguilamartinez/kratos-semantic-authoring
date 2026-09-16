@@ -11,8 +11,8 @@ import {
   Tile,
 } from "@carbon/react";
 
-import { ApiError, runRevision } from "./api";
-import type { CaseSnapshot, RunSummary } from "./api";
+import { ApiError, getRevision, getRevisions, runRevision } from "./api";
+import type { CaseSnapshot, Revision, RunSummary } from "./api";
 
 function runErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -31,19 +31,30 @@ interface RevisionPanelProps {
 export function RevisionPanel({ snapshot, onRefresh }: RevisionPanelProps) {
   const currentRevision = snapshot?.case.revision;
   const [selectedRevision, setSelectedRevision] = useState(currentRevision ?? 0);
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [selected, setSelected] = useState<CaseSnapshot | null>(null);
   const [run, setRun] = useState<RunSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (currentRevision !== undefined) setSelectedRevision(currentRevision);
+    if (currentRevision === undefined) return;
+    setSelectedRevision(currentRevision);
+    getRevisions()
+      .then((response) => setRevisions(response.revisions))
+      .catch((caught) => setError(runErrorMessage(caught)));
   }, [currentRevision]);
 
-  const revisions =
-    currentRevision === undefined
-      ? []
-      : Array.from({ length: currentRevision + 1 }, (_, revision) => revision);
+  useEffect(() => {
+    if (currentRevision === undefined) return;
+    let active = true;
+    setSelected(null);
+    getRevision(selectedRevision)
+      .then((revision) => { if (active) setSelected(revision); })
+      .catch((caught) => { if (active) setError(runErrorMessage(caught)); });
+    return () => { active = false; };
+  }, [selectedRevision, currentRevision]);
 
   async function handleRun() {
     setRunning(true);
@@ -63,6 +74,8 @@ export function RevisionPanel({ snapshot, onRefresh }: RevisionPanelProps) {
     setError(null);
     try {
       await onRefresh();
+      const response = await getRevisions();
+      setRevisions(response.revisions);
     } catch (caught) {
       setError(runErrorMessage(caught));
     } finally {
@@ -101,7 +114,7 @@ export function RevisionPanel({ snapshot, onRefresh }: RevisionPanelProps) {
           <Select
             id="revision"
             labelText="Revision"
-            helperText="Available revisions are sequential up to the current one."
+            helperText="Only published bundles can be run. Drafts are not included."
             value={selectedRevision}
             disabled={!snapshot || running}
             onChange={(event) => {
@@ -110,7 +123,7 @@ export function RevisionPanel({ snapshot, onRefresh }: RevisionPanelProps) {
               setError(null);
             }}
           >
-            {revisions.map((revision) => (
+            {revisions.map(({ revision }) => (
               <SelectItem
                 key={revision}
                 value={revision}
@@ -118,6 +131,13 @@ export function RevisionPanel({ snapshot, onRefresh }: RevisionPanelProps) {
               />
             ))}
           </Select>
+
+          {selected && (
+            <details className="native-details">
+              <summary>Revision {selected.case.revision} canonical model</summary>
+              <pre className="json-view">{JSON.stringify(selected.case, null, 2)}</pre>
+            </details>
+          )}
 
           <div className="revision-actions">
             {running ? (

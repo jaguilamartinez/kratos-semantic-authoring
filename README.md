@@ -1,30 +1,24 @@
 # Kratos Semantic Authoring
 
-Prototipo de edición semántica para casos de Structural Mechanics en Kratos. La API construye el modelo canónico desde los archivos del caso y permite cambiar variables escalares de materiales y parámetros escalares de procesos. `test_model_3d.gid` es el caso de demostración, no un contrato del código.
+Prototipo local para editar casos de Kratos Structural Mechanics desde un modelo canónico. El caso de referencia es `test_model_3d.gid`; sus archivos originales se montan en solo lectura.
 
-El repositorio contiene tres servicios:
+El proyecto tiene tres servicios:
 
-- `frontend`, una interfaz React para enviar prompts y explorar el modelo canónico.
-- `authoring-api`, que mantiene el modelo canónico, interpreta una petición con un LLM y genera una revisión ejecutable.
-- `kratos-worker`, que ejecuta el caso original o una revisión generada.
-
-Los archivos GiD originales nunca se modifican. Cada cambio crea un bundle nuevo en `workspace/revisions/`, un directorio local que Git ignora.
+- `frontend`: React, Carbon y React Flow.
+- `authoring-api`: modelo canónico, tools tipadas, borradores y revisiones.
+- `kratos-worker`: preflight y ejecución en Kratos 10.4.3 para Linux/amd64.
 
 ## Arranque
 
-Se necesita Docker con Compose. Para usar la edición en lenguaje natural, copia el archivo de entorno y añade una clave de OpenAI:
+Se necesita Docker con Compose:
 
 ```bash
 cp .env.example .env
-```
-
-Después levanta los servicios:
-
-```bash
+# añade OPENAI_API_KEY al fichero .env para habilitar los prompts
 docker compose up --build
 ```
 
-La interfaz queda en `http://localhost:3000`, la API de autoría en `http://localhost:8000` y el worker en `http://localhost:8001`.
+La interfaz queda en `http://localhost:3000`. Las APIs se publican en `8000` y `8001` para inspección local.
 
 ```bash
 curl http://localhost:8000/health
@@ -32,83 +26,70 @@ curl http://localhost:8000/case
 curl http://localhost:8001/health
 ```
 
-## Editar el caso
+## Flujo de edición
 
-El campo `expected_revision` evita sobrescribir un cambio más reciente. Se obtiene con `GET /case`.
+Un prompt siempre crea o actualiza un borrador. No modifica la revisión publicada.
 
-La interfaz permite enviar el prompt y representa el modelo actual como un grafo de materiales y procesos. Los nodos se pueden seleccionar y mover para ordenar la vista sin modificar el caso. Usa IBM Carbon para los componentes y `@xyflow/react` para el grafo; no contiene nombres ni reglas del caso de demostración.
+1. `POST /edits` interpreta el prompt con OpenAI Agents SDK y devuelve un borrador persistido.
+2. `POST /drafts/<id>/validate` valida referencias, cobertura y compilación; para el perfil ejecutable también ejecuta `Initialize`/`Check` de Kratos en un directorio temporal.
+3. `POST /drafts/<id>/publish` publica una revisión inmutable sólo si el hash validado sigue siendo el actual y la revisión base no ha cambiado.
 
-La pestaña `Revisions` permite ejecutar en Kratos cualquiera de las revisiones creadas en el workspace y muestra el resumen de la última ejecución. Las revisiones son inmutables: ejecutarlas no cambia cuál es la revisión actual.
+El cliente HTTP y la interfaz muestran el diff semántico y el diff de archivos. Si otro cambio publica una revisión mientras se edita, el borrador se conserva y se informa del conflicto.
 
-La ruta directa permite probar la operación determinista sin llamar al LLM:
+## Modelo canónico
+
+`ksa.structural-case/0.3` representa por separado:
+
+- análisis, numerics y ejecución;
+- modelo, regiones y referencias inmutables a mallas;
+- preparación/modelers con su orden;
+- materiales y asignaciones de propiedades;
+- condiciones de contorno, cargas, condiciones iniciales y procesos auxiliares;
+- outputs con su orden;
+- extensiones nativas no conocidas.
+
+Cada componente tiene un identificador estable, una capacidad del catálogo y los campos nativos restantes. El compilador genera `ProjectParameters.json`, el fichero de materiales y las mallas desde el canónico; no vuelve a leer una plantilla mutable para rellenar campos olvidados. Los campos desconocidos se conservan como `native-only` y no se ofrecen como edición semántica.
+
+El catálogo actual está fijado a Kratos 10.4.3 y al perfil `structural-static-3d`. Cubre el caso base: importación MDPA, creación de elementos/condiciones, elasticidad lineal 3D, desplazamiento impuesto, fuerza puntual, tracción superficial, GiD y VTK. Dinámica, modal, presión e initial conditions quedan declarados para perfiles posteriores.
+
+## API útil
 
 ```bash
-curl -X POST http://localhost:8000/tools/apply-case-changes \
+# capacidades y tools que recibe el agente
+curl http://localhost:8000/capabilities
+curl http://localhost:8000/tools
+
+# borrador determinista, sin LLM (sustituye el ID por uno de /case)
+curl -X POST http://localhost:8000/tools/propose-case-changes \
   -H 'Content-Type: application/json' \
-  -d '{
-    "expected_revision": 0,
-    "material_changes": [
-      {
-        "model_part_name": "Structure.Volume3",
-        "variable_name": "YOUNG_MODULUS",
-        "value": 3500000000
-      }
-    ],
-    "process_changes": []
-  }'
-```
+  -d '{"expected_revision":0,"commands":[{"type":"configure_numerics","max_iterations":12}]}'
 
-Para recorrer el mismo camino mediante lenguaje natural:
-
-```bash
-curl -X POST http://localhost:8000/edits \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "expected_revision": 0,
-    "prompt": "Cambia YOUNG_MODULUS de Volume3 a 3500000000 en las unidades actuales del modelo"
-  }'
-```
-
-La respuesta incluye el diff semántico, la revisión y las llamadas de tool realizadas. El sistema de unidades del caso aún no está confirmado; por eso el LLM pregunta en vez de convertir valores expresados en Pa, GPa, N u otras unidades.
-
-El prompt y el modelo canónico actual se envían a OpenAI. No se envían la geometría, la malla ni los archivos de Kratos.
-
-## Ejecutar una revisión
-
-El worker sigue aceptando un `POST` vacío para ejecutar el caso original:
-
-```bash
-curl -X POST http://localhost:8001/runs
-```
-
-Para ejecutar un bundle generado, indica su número de revisión:
-
-```bash
+# revisiones publicadas
+curl http://localhost:8000/revisions
 curl -X POST http://localhost:8001/runs \
-  -H 'Content-Type: application/json' \
-  -d '{"revision": 1}'
+  -H 'Content-Type: application/json' -d '{"revision":0}'
 ```
 
-Cada cálculo crea una carpeta en `artifacts/` con los logs, los archivos producidos por los output processes del caso y un `summary.json`. El resultado se puede consultar de nuevo con `GET /runs/<run_id>`.
+Las mallas y los ficheros de las revisiones se validan mediante hashes. `workspace/`, `artifacts/` y `docs/private/` están ignorados por Git porque contienen estado local, resultados y especificaciones de trabajo.
 
 ## Pruebas
 
-Con las dependencias de autoría instaladas:
+Con Python y las dependencias de `requirements-authoring.txt`:
 
 ```bash
-python3 -m unittest discover -s tests
+python3 -m unittest discover -s tests -v
 ```
 
-Las pruebas cubren el contrato del caso original, un segundo caso con nombres arbitrarios, las mutaciones, la compilación determinista y el flujo del agente con el modelo de pruebas del SDK. La llamada real al LLM queda fuera de la suite para que las pruebas no dependan de red ni consuman crédito.
+El frontend se comprueba con:
 
-## Estructura
+```bash
+cd frontend
+npm ci
+npm run build
+```
 
-- `authoring/`: lector del caso, modelo canónico, agente, compilador, persistencia y API de edición.
-- `cases/test_model_3d.gid/`: proyecto GiD original, montado en solo lectura.
-- `frontend/`: aplicación React, cliente HTTP y grafo del modelo canónico.
-- `worker/`: API y runner de Kratos.
-- `workspace/`: revisiones generadas localmente.
-- `artifacts/`: resultados de las ejecuciones.
-- `tests/`: pruebas del caso y de la autoría.
+La suite cubre importación lossless del caso, compilación determinista, IDs estables, comandos atómicos, validación, borradores, conflictos, tools del Agents SDK y el contrato de la geometría de referencia. La ejecución completa de Kratos se mantiene como operación explícita del worker.
 
-La especificación de arquitectura está en `docs/private/`. Ese directorio se mantiene fuera de Git. OpenAI Agents SDK gestiona el ciclo modelo/tool. MCP sigue aplazado y LangGraph se reconsiderará cuando el flujo necesite pausas y reanudación persistente.
+## Decisiones deliberadas
+
+No se añade un servidor MCP en este incremento: no hay consumidor MCP y las tools sólo las usa el agente del backend. Tampoco se introduce LangGraph; el flujo lineal del MVP se expresa con el Agents SDK y persistencia local. Se puede añadir una máquina de estados cuando aparezcan pausas y reanudaciones más complejas.
