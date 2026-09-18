@@ -62,6 +62,17 @@ export interface FieldChange {
   operation?: "add" | "remove" | "replace";
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface DraftChangeSet {
+  sequence: number;
+  changes: FieldChange[];
+  native_changes: FieldChange[];
+}
+
 export interface CaseSnapshot {
   case: CanonicalCase;
   bundle_id: string;
@@ -81,6 +92,8 @@ export interface Draft {
   content_hash: string;
   validated_hash: string | null;
   case: CanonicalCase;
+  messages: ChatMessage[];
+  change_log: DraftChangeSet[];
   changes: FieldChange[];
   native_changes: FieldChange[];
   validation: ValidationReport | null;

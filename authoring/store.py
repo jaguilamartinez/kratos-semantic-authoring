@@ -8,6 +8,8 @@ from threading import Lock
 from typing import Literal
 from uuid import UUID, uuid4
 
+from pydantic import Field
+
 from authoring.case import Case, FieldChange, StrictModel, diff_cases, diff_values
 from authoring.commands import CaseCommand, ValidationReport, apply_commands, validate_case
 from authoring.compiler import compile_case, load_case, render_case, write_json
@@ -36,6 +38,17 @@ class ChangeResult:
     changes: list[FieldChange]
 
 
+class DraftMessage(StrictModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class DraftChangeSet(StrictModel):
+    sequence: int
+    changes: list[FieldChange]
+    native_changes: list[FieldChange]
+
+
 class Draft(StrictModel):
     id: str
     base_revision: int
@@ -45,6 +58,8 @@ class Draft(StrictModel):
     native_changes: list[FieldChange]
     validation: ValidationReport | None = None
     validated_hash: str | None = None
+    messages: list[DraftMessage] = Field(default_factory=list)
+    change_log: list[DraftChangeSet] = Field(default_factory=list)
     status: Literal["editing", "published"] = "editing"
     published_revision: int | None = None
 
@@ -155,7 +170,8 @@ class CaseStore:
         return draft
 
     def stage(self, expected_revision: int, edited: Case, draft_id: str | None = None,
-              expected_hash: str | None = None) -> Draft:
+              expected_hash: str | None = None,
+              messages: list[DraftMessage] | None = None) -> Draft:
         with self.lock:
             base = self._assert_revision(expected_revision).case
             existing = self._read_draft(draft_id) if draft_id else None
@@ -166,13 +182,38 @@ class CaseStore:
             candidate = edited.model_copy(deep=True, update={"revision": expected_revision})
             digest = content_hash(candidate)
             if existing and digest == existing.content_hash:
-                return existing
+                if messages is None or messages == existing.messages:
+                    return existing
+                existing.messages = messages
+                return self._save_draft(existing)
+            conversation = messages if messages is not None else []
+            if existing and messages is None:
+                conversation = existing.messages
             old_native = dict(zip(("ProjectParameters", "Materials"), render_case(base)))
             new_native = dict(zip(("ProjectParameters", "Materials"), render_case(candidate)))
+            previous = existing.case if existing else base
+            previous_native = dict(zip(("ProjectParameters", "Materials"), render_case(previous)))
+            step_changes = diff_cases(previous, candidate)
+            step_native_changes = diff_values(previous_native, new_native)
+            change_log = list(existing.change_log) if existing else []
+            if existing and not change_log and (existing.changes or existing.native_changes):
+                change_log.append(DraftChangeSet(
+                    sequence=1,
+                    changes=existing.changes,
+                    native_changes=existing.native_changes,
+                ))
+            if step_changes or step_native_changes:
+                change_log.append(DraftChangeSet(
+                    sequence=len(change_log) + 1,
+                    changes=step_changes,
+                    native_changes=step_native_changes,
+                ))
             return self._save_draft(Draft(
                 id=existing.id if existing else str(uuid4()), base_revision=expected_revision,
                 case=candidate, content_hash=digest, changes=diff_cases(base, candidate),
                 native_changes=diff_values(old_native, new_native),
+                messages=conversation,
+                change_log=change_log,
             ))
 
     def propose(self, expected_revision: int, commands: list[CaseCommand],

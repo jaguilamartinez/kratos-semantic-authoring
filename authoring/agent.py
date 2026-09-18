@@ -84,7 +84,8 @@ def tool_specs() -> list[dict[str, object]]:
             for tool in TOOLS]
 
 
-async def edit_case(prompt: str, case: Case, model: str | Model) -> EditResult:
+async def edit_case(prompt: str, case: Case, model: str | Model,
+                    history: list[dict[str, str]] | None = None) -> EditResult:
     context = EditContext(draft=case)
     agent = Agent[EditContext](
         name="Kratos case editor", instructions=INSTRUCTIONS, model=model, tools=TOOLS,
@@ -93,6 +94,7 @@ async def edit_case(prompt: str, case: Case, model: str | Model) -> EditResult:
             response_include=["reasoning.encrypted_content"], timeout=60,
         ),
     )
-    result = await Runner.run(agent, prompt, context=context, max_turns=8,
+    messages = [*(history or []), {"role": "user", "content": prompt}]
+    result = await Runner.run(agent, messages, context=context, max_turns=8,
                               run_config={"tracing_disabled": True})
     return EditResult(context.draft, str(result.final_output or ""), context.tool_calls)

@@ -8,7 +8,7 @@ from authoring.agent import edit_case
 from authoring.case import diff_cases
 from authoring.commands import COMMAND_ADAPTER, apply_commands
 from authoring.compiler import compile_case, input_files, load_case, read_json, render_case, sha256
-from authoring.store import CaseStore, DraftConflict, RevisionConflict
+from authoring.store import CaseStore, Draft, DraftConflict, DraftMessage, RevisionConflict
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,6 +93,56 @@ class TestCaseStore(unittest.TestCase):
             with self.assertRaises(RevisionConflict):
                 store.publish_draft(second.id, second.content_hash)
 
+    def test_conversation_survives_staging_and_validation_tracks_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = CaseStore(CASE_DIR, Path(temporary))
+            case = store.read().case
+            messages = [
+                DraftMessage(role="user", content="¿Qué carga cambiarías?"),
+                DraftMessage(role="assistant", content="La carga superior."),
+            ]
+            draft = store.stage(0, case, messages=messages)
+
+            self.assertEqual(draft.changes, [])
+            self.assertEqual(draft.messages, messages)
+            self.assertEqual(draft.change_log, [])
+            legacy = draft.model_dump()
+            legacy.pop("messages")
+            legacy.pop("change_log")
+            self.assertEqual(Draft.model_validate(legacy).messages, [])
+            self.assertEqual(Draft.model_validate(legacy).change_log, [])
+
+            validated = store.validate_draft(draft.id, draft.content_hash)
+            continued = messages + [
+                DraftMessage(role="user", content="Déjala como está."),
+                DraftMessage(role="assistant", content="No he cambiado el modelo."),
+            ]
+            draft = store.stage(
+                0, case, draft.id, expected_hash=validated.content_hash,
+                messages=continued,
+            )
+            self.assertEqual(draft.messages, continued)
+            self.assertEqual(draft.validation, validated.validation)
+            self.assertEqual(draft.validated_hash, validated.validated_hash)
+
+            load_id = next(iter(case.loads))
+            changed_case = apply_commands(case, COMMAND_ADAPTER.validate_python([{
+                "type": "define_load", "id": load_id, "magnitude": 30,
+            }]))
+            draft = store.stage(0, changed_case, draft.id, draft.content_hash)
+            self.assertEqual(draft.messages, continued)
+            self.assertEqual(len(draft.change_log), 1)
+            self.assertEqual(draft.change_log[0].sequence, 1)
+            self.assertIsNone(draft.validation)
+            self.assertIsNone(draft.validated_hash)
+
+            changed_again = apply_commands(changed_case, COMMAND_ADAPTER.validate_python([{
+                "type": "define_load", "id": load_id, "magnitude": 35,
+            }]))
+            draft = store.stage(0, changed_again, draft.id, draft.content_hash)
+            self.assertEqual(len(draft.change_log), 2)
+            self.assertEqual(draft.change_log[1].sequence, 2)
+
 
 class TestAgentEditing(unittest.IsolatedAsyncioTestCase):
     async def test_agent_stages_typed_commands_without_publishing(self) -> None:
@@ -109,6 +159,23 @@ class TestAgentEditing(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.draft.revision, case.revision)
         self.assertEqual(result.message, "He preparado el cambio para revisión.")
         self.assertEqual(len(result.tool_calls), 1)
+        model.assert_complete()
+
+    async def test_agent_receives_the_draft_conversation(self) -> None:
+        case = load_case(CASE_DIR)
+        model = ScriptedModel([
+            [assistant_message("Sí, mantendré la dirección actual.")],
+        ])
+        history = [
+            {"role": "user", "content": "Cambia la carga superior."},
+            {"role": "assistant", "content": "¿Mantengo la dirección actual?"},
+        ]
+
+        await edit_case("Sí.", case, model, history)
+
+        self.assertEqual(model.first_call.input, [
+            *history, {"role": "user", "content": "Sí."},
+        ])
         model.assert_complete()
 
 

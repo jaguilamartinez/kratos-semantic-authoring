@@ -28,7 +28,7 @@ curl http://localhost:8001/health
 
 ## Flujo de edición
 
-Un prompt siempre crea o actualiza un borrador. No modifica la revisión publicada.
+Un prompt siempre crea o actualiza un borrador. El borrador guarda la conversación y un changelog ordenado de cada actualización del modelo, por lo que los mensajes siguientes se interpretan sobre el mismo contexto y el diff permanece abierto hasta publicar. No modifica la revisión publicada.
 
 1. `POST /edits` interpreta el prompt con OpenAI Agents SDK y devuelve un borrador persistido.
 2. `POST /drafts/<id>/validate` valida referencias, cobertura y compilación; para el perfil ejecutable también ejecuta `Initialize`/`Check` de Kratos en un directorio temporal.

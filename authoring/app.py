@@ -13,11 +13,11 @@ from openai import OpenAIError
 from pydantic import Field
 
 from authoring.agent import edit_case, tool_specs
-from authoring.case import StrictModel, diff_cases
+from authoring.case import StrictModel
 from authoring.catalog import discover_capabilities
 from authoring.commands import CaseCommand, ValidationIssue, validate_case
 from authoring.compiler import render_case
-from authoring.store import CaseStore, DraftConflict, RevisionConflict
+from authoring.store import CaseStore, DraftConflict, DraftMessage, RevisionConflict
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,16 +184,20 @@ async def create_edit(request: EditRequest):
         raise HTTPException(503, "OPENAI_API_KEY is not configured")
     draft_id = str(request.draft_id) if request.draft_id else None
     case = store.editing_case(request.expected_revision, draft_id)
-    if draft_id and store.read_draft(draft_id).content_hash != request.content_hash:
+    existing = store.read_draft(draft_id) if draft_id else None
+    if existing and existing.content_hash != request.content_hash:
         raise DraftConflict("The draft changed; reload it before continuing")
+    history = [message.model_dump() for message in existing.messages] if existing else []
     try:
-        edit = await edit_case(request.prompt, case, OPENAI_MODEL)
+        edit = await edit_case(request.prompt, case, OPENAI_MODEL, history)
     except (AgentsException, OpenAIError) as error:
         raise HTTPException(502, f"LLM request failed ({type(error).__name__})") from error
-    draft = None
-    if diff_cases(case, edit.draft):
-        draft = store.stage(request.expected_revision, edit.draft, draft_id, request.content_hash)
-    elif draft_id:
-        draft = store.read_draft(draft_id)
+    messages = [*(existing.messages if existing else []),
+                DraftMessage(role="user", content=request.prompt),
+                DraftMessage(role="assistant", content=edit.message)]
+    draft = store.stage(
+        request.expected_revision, edit.draft, draft_id,
+        expected_hash=request.content_hash, messages=messages,
+    )
     return {"draft": draft, "message": edit.message, "model": OPENAI_MODEL,
             "tool_calls": edit.tool_calls}
